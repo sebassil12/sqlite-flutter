@@ -3,9 +3,10 @@ import 'db_helper.dart';
 import 'computadora.dart';
  
 void main() {
-  runApp(ComputadorasApp());
+  //Use const to avoid unnecessary rebuilds
+  runApp(const ComputadorasApp());
 }
- 
+
 class ComputadorasApp extends StatelessWidget {
   const ComputadorasApp({super.key});
 
@@ -13,8 +14,17 @@ class ComputadorasApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Gestión de Computadoras',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: HomeScreen(),
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        //Add elevatedButtonTheme to set default style for elevated buttons
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.deepOrange,
+          ),
+        ),
+      ),
+      // use const for the home widget to avoid unnecessary rebuilds
+      home: const HomeScreen(),
     );
   }
 }
@@ -28,27 +38,42 @@ class HomeScreen extends StatefulWidget {
  
 class _HomeScreenState extends State<HomeScreen> {
   List<Computadora> listaComputadoras = [];
- 
-  final _formKey = GlobalKey<FormState>();
+  // Use GlobalKey<FormState> to manage the form state
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   Computadora? computadoraActual;
- 
-  final tipoCtrl = TextEditingController();
-  final marcaCtrl = TextEditingController();
-  final cpuCtrl = TextEditingController();
-  final ramCtrl = TextEditingController();
-  final hddCtrl = TextEditingController();
+
+  // Use TextEditingController to manage the text fields
+  final TextEditingController tipoCtrl = TextEditingController();
+  final TextEditingController marcaCtrl = TextEditingController();
+  final TextEditingController cpuCtrl = TextEditingController();
+  final TextEditingController ramCtrl = TextEditingController();
+  final TextEditingController hddCtrl = TextEditingController();
  
   @override
   void initState() {
     super.initState();
     _cargarComputadoras();
   }
- 
+
+  @override
+  void dispose() {
+    tipoCtrl.dispose();
+    marcaCtrl.dispose();
+    cpuCtrl.dispose();
+    ramCtrl.dispose();
+    hddCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _cargarComputadoras() async {
-    final data = await DBHelper.getComputadoras();
-    setState(() {
+    try{
+      final data = await DBHelper.getComputadoras();
+      setState(() {
       listaComputadoras = data;
-    });
+      });
+    } catch (e) { // Handle error if needed
+      _mostrarError("Error al cargar computadoras: $e");
+    }
   }
  
   void _limpiarFormulario() {
@@ -70,15 +95,18 @@ class _HomeScreenState extends State<HomeScreen> {
         ram: ramCtrl.text,
         hdd: hddCtrl.text,
       );
- 
-      if (computadoraActual == null) {
-        await DBHelper.insertComputadora(nueva);
-      } else {
-        await DBHelper.updateComputadora(nueva);
+
+    try{
+        if (computadoraActual == null) {
+          await DBHelper.insertComputadora(nueva);
+        } else {
+          await DBHelper.updateComputadora(nueva);
+        }
+        _limpiarFormulario();
+        await _cargarComputadoras(); 
+      } catch (e) { // Handle error if needed
+        _mostrarError("Error al guardar computadora: $e");
       }
- 
-      _limpiarFormulario();
-      await _cargarComputadoras();
     }
   }
  
@@ -90,90 +118,192 @@ class _HomeScreenState extends State<HomeScreen> {
     ramCtrl.text = compu.ram;
     hddCtrl.text = compu.hdd;
   }
- 
+  //Future is used to handle async operations
   Future<void> _eliminarComputadora(int id) async {
-    await DBHelper.deleteComputadora(id);
-    await _cargarComputadoras();
+    try {
+      await DBHelper.deleteComputadora(id);
+      await _cargarComputadoras();
+    } catch (e) {
+      _mostrarError('Error al eliminar computadora: $e');
+    }
   }
- 
+
+  void _mostrarError(String mensaje) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(mensaje)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Gestión de Computadoras"),
+        title: Text(
+          "Gestión de Computadoras",
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
         backgroundColor: Colors.indigo[800],
       ),
       body: Stack(
-        children: [
-          Positioned.fill(
-            child: Image.asset(
-              'assets/fondo.jpg',
-              fit: BoxFit.cover,
-            ),
-          ),
-          Positioned.fill(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  Card(
-                    color: Colors.white.withOpacity(0.85),
-                    elevation: 5,
-                    child: Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          children: [
-                            Text("Formulario de Computadora", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                            SizedBox(height: 10),
-                            TextFormField(controller: tipoCtrl, decoration: InputDecoration(labelText: 'Tipo'), validator: (v) => v!.isEmpty ? 'Campo requerido' : null),
-                            TextFormField(controller: marcaCtrl, decoration: InputDecoration(labelText: 'Marca'), validator: (v) => v!.isEmpty ? 'Campo requerido' : null),
-                            TextFormField(controller: cpuCtrl, decoration: InputDecoration(labelText: 'CPU'), validator: (v) => v!.isEmpty ? 'Campo requerido' : null),
-                            TextFormField(controller: ramCtrl, decoration: InputDecoration(labelText: 'RAM'), validator: (v) => v!.isEmpty ? 'Campo requerido' : null),
-                            TextFormField(controller: hddCtrl, decoration: InputDecoration(labelText: 'HDD'), validator: (v) => v!.isEmpty ? 'Campo requerido' : null),
-                            SizedBox(height: 10),
-                            Row(
-                              children: [
-                                ElevatedButton(
-                                  onPressed: _guardarComputadora,
-                                  child: Text(computadoraActual == null ? 'Agregar' : 'Actualizar'),
-                                ),
-                                SizedBox(width: 10),
-                                OutlinedButton(
-                                  onPressed: _limpiarFormulario,
-                                  child: Text("Limpiar"),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+  children: [
+    Positioned.fill(
+      child: Opacity(
+          opacity: 0.5, // Ajusta la opacidad aquí
+          child: Image.asset(
+            'assets/fondo.jpg',
+            fit: BoxFit.cover,
+            alignment: Alignment.topLeft,
+        ),
+      ),
+    ),
+    Positioned.fill(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(12),
+        child: Column(
+          children: [
+             FormularioComputadora(
+                    formKey: _formKey,
+                    tipoCtrl: tipoCtrl,
+                    marcaCtrl: marcaCtrl,
+                    cpuCtrl: cpuCtrl,
+                    ramCtrl: ramCtrl,
+                    hddCtrl: hddCtrl,
+                    onSave: _guardarComputadora,
+                    onClear: _limpiarFormulario,
                   ),
-                  SizedBox(height: 20),
-                  Text("Lista de Computadoras", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "Lista de Computadoras",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
+                  ),
+                  const SizedBox(height: 10),
                   ...listaComputadoras.map((compu) => Card(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.black.withValues(alpha: 0.6 * 255),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         child: ListTile(
-                          leading: Icon(Icons.computer, color: Colors.indigo),
-                          title: Text("${compu.tipo} - ${compu.marca}"),
-                          subtitle: Text("CPU: ${compu.cpu}, RAM: ${compu.ram}, HDD: ${compu.hdd}"),
+                          leading: const Icon(Icons.computer, color: Colors.white),
+                          title: Text("${compu.tipo} - ${compu.marca}", style: const TextStyle(color: Colors.white)),
+                          subtitle: Text(
+                            "CPU: ${compu.cpu}, RAM: ${compu.ram}, HDD: ${compu.hdd}",
+                            style: const TextStyle(color: Colors.white70),
+                          ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              IconButton(icon: Icon(Icons.edit, color: Colors.orange), onPressed: () => _cargarEnFormulario(compu)),
-                              IconButton(icon: Icon(Icons.delete, color: Colors.red), onPressed: () => _eliminarComputadora(compu.id!)),
+                              IconButton(
+                                icon: const Icon(Icons.edit, color: Colors.orangeAccent),
+                                onPressed: () => _cargarEnFormulario(compu),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.redAccent),
+                                onPressed: () => _eliminarComputadora(compu.id!),
+                              ),
                             ],
                           ),
                         ),
                       )),
+                  const SizedBox(height: 100), // espacio para scroll cómodo
                 ],
               ),
             ),
-          )
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class FormularioComputadora extends StatelessWidget {
+  final GlobalKey<FormState> formKey;
+  final TextEditingController tipoCtrl, marcaCtrl, cpuCtrl, ramCtrl, hddCtrl;
+  final VoidCallback onSave, onClear;
+
+  const FormularioComputadora({
+    super.key,
+    required this.formKey,
+    required this.tipoCtrl,
+    required this.marcaCtrl,
+    required this.cpuCtrl,
+    required this.ramCtrl,
+    required this.hddCtrl,
+    required this.onSave,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Colors.white.withOpacity(0.85),
+      elevation: 5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Form(
+          key: formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                "Formulario de Computadora",
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: tipoCtrl.text.isNotEmpty ? tipoCtrl.text : null, // Valor inicial
+                decoration: const InputDecoration(labelText: 'Tipo'),
+                items: const [
+                  DropdownMenuItem(value: 'Laptop', child: Text('Laptop')),
+                  DropdownMenuItem(value: 'Escritorio', child: Text('Escritorio')),
+                ],
+                onChanged: (value) {
+                  tipoCtrl.text = value!; // Actualiza el controlador con el valor seleccionado
+                },
+                validator: (value) => value == null || value.isEmpty ? 'Campo requerido' : null,
+              ),
+              TextFormField(
+                controller: marcaCtrl,
+                decoration: const InputDecoration(labelText: 'Marca'),
+                validator: (v) => v!.isEmpty ? 'Campo requerido' : null,
+              ),
+              TextFormField(
+                controller: cpuCtrl,
+                decoration: const InputDecoration(labelText: 'CPU'),
+                validator: (v) => v!.isEmpty ? 'Campo requerido' : null,
+              ),
+              TextFormField(
+                controller: ramCtrl,
+                decoration: const InputDecoration(labelText: 'RAM'),
+                validator: (v) => v!.isEmpty ? 'Campo requerido' : null,
+              ),
+              TextFormField(
+                controller: hddCtrl,
+                decoration: const InputDecoration(labelText: 'HDD'),
+                validator: (v) => v!.isEmpty ? 'Campo requerido' : null,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: onSave,
+                      icon: const Icon(Icons.save),
+                      label: const Text('Guardar'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onClear,
+                      icon: const Icon(Icons.clear),
+                      label: const Text("Limpiar"),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
